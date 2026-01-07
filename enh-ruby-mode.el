@@ -885,12 +885,11 @@ not treated as modifications to the buffer."
              (string= erm-process-delimiter (substring erm-response -5 nil)))
     (setq response (substring erm-response 0 -5))
     (setq erm-response "")
-    (unless (buffer-live-p erm-parse-buff)
-      (erm-reset))
-    (when (buffer-live-p erm-parse-buff)
-      (with-current-buffer erm-parse-buff
-        (erm-with-unmodifying-text-property-changes
-         (erm-parse response))))))
+    (if (buffer-live-p erm-parse-buff)
+        (with-current-buffer erm-parse-buff
+          (erm-with-unmodifying-text-property-changes
+           (erm-parse response)))
+      (erm-reset))))
 
 (defun erm-ready ()
   (if erm-full-parse-p
@@ -1594,9 +1593,9 @@ With ARG, do it that many times."
             (if erm-full-parse-p
                 (enh-ruby-fontify-buffer)
               (let ((current (car erm-reparse-list)))
-                (if current
+                (when (and current (buffer-live-p current))
+                    (setq erm-reparse-list (cdr erm-reparse-list))
                     (with-current-buffer current
-                      (setq erm-reparse-list (cdr erm-reparse-list))
                       (enh-ruby-fontify-buffer))
                   (erm-do-syntax-check))))))
 
