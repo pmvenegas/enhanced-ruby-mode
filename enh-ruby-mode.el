@@ -191,6 +191,14 @@ Warning: does not play well with command ‘electric-indent-mode’."
   :safe #'booleanp
   :group 'enh-ruby)
 
+(defcustom enh-ruby-indent-after-visibility nil
+  "When non-nil, indent definitions that follow visibility modifiers
+(e.g. ‘private’) an additional ‘enh-ruby-indent-level’. If nil, no extra
+indentation is added."
+  :type 'boolean
+  :safe #'booleanp
+  :group 'enh-ruby)
+
 (defcustom enh-ruby-program "ruby"
   "The ruby program to parse the source."
   :type 'string
@@ -1147,6 +1155,37 @@ not treated as modifications to the buffer."
   (when (< 0 (or (setq pos (previous-single-property-change pos 'font-lock-face)) 0))
     (previous-single-property-change pos 'font-lock-face)))
 
+;; Visibility helper
+(defun enh-ruby-previous-visibility-only-p ()
+  "Return non-nil if the previous non-blank, non-comment line is a visibility
+modifier. Recognizes ‘private’, ‘protected’ or ‘public’ on its own line
+(optionally with trailing comment)."
+  (save-excursion
+    ;; Step to previous non-empty / non-comment-only line
+    (forward-line -1)
+    (while (and (not (bobp))
+                (let ((line (buffer-substring-no-properties (line-beginning-position)
+                                                            (line-end-position))))
+                  (string-match-p "\\`[ \t]*\\(#.*\\)?\\'" line)))
+      (forward-line -1))
+    (let ((line (buffer-substring-no-properties (line-beginning-position)
+                                                (line-end-position))))
+      (string-match-p "\\`[ \t]*\\(private\\|protected\\|public\\)[ \t]*\\(#.*\\)?\\'" line))))
+
+;; Find the indentation of the enclosing class/module
+(defun enh-ruby-enclosing-class-or-module-indent ()
+  "Return the indentation of the nearest preceding ‘class’ or ‘module’ line, or
+nil if not found."
+  (save-excursion
+    (forward-line -1)
+    (while (and (not (bobp))
+                (let ((line (buffer-substring-no-properties (line-beginning-position)
+                                                            (line-end-position))))
+                  (not (string-match-p "\\`[ \t]*\\(?:class\\|module\\)\\b" line))))
+      (forward-line -1))
+    (when (looking-at "^[ \t]*\\(?:class\\|module\\)\\b")
+      (current-indentation))))
+
 (defun enh-ruby-show-errors-at (pos face)
   (let ((overlays (overlays-at pos))
         overlay
@@ -1442,7 +1481,25 @@ With ARG, do it that many times."
   (unwind-protect
       (progn
         (setq erm-no-parse-needed-p t)
-        (enh-ruby-indent-to (enh-ruby-calculate-indent)))
+        (let ((indent (enh-ruby-calculate-indent)))
+          (when enh-ruby-indent-after-visibility
+            (save-excursion
+              (forward-line 0)
+              (cond
+               ;; Indent visibility modifiers one level below the enclosing
+               ;; class/module.
+               ((looking-at "^[ \t]*\\(?:private\\|protected\\|public\\)\\b")
+                (let ((encl (enh-ruby-enclosing-class-or-module-indent)))
+                  (when encl
+                    (setq indent (+ encl enh-ruby-indent-level)))))
+
+               ;; Add extra indent after visibility modifiers until the end
+               ;; of the enclosing class/module.
+               ((and (not (looking-at "^[ \t]*\\(?:end\\)\\b"))
+                     (enh-ruby-previous-visibility-only-p))
+                (setq indent (+ indent enh-ruby-indent-level))))))
+
+          (enh-ruby-indent-to indent)))
     (setq erm-no-parse-needed-p nil)))
 
 (defun enh-ruby-indent-to (indent)
