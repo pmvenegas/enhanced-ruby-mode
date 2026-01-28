@@ -214,6 +214,24 @@
    (string-should-indent "class Foo\nprivate def foo\nx\nend\nend\n"
                          "class Foo\n  private def foo\n            x\n          end\nend\n")))
 
+(enh-deftest enh-ruby-indent-def-after-visibility-disabled ()
+  (let ((enh-ruby-indent-after-visibility nil))
+    (with-deep-indent nil
+     (string-should-indent "class Foo\nprivate\ndef foo\nx\nend\nend\n"
+                           "class Foo\n  private\n  def foo\n    x\n  end\nend\n"))))
+
+(enh-deftest enh-ruby-indent-def-after-visibility ()
+  (let ((enh-ruby-indent-after-visibility t))
+    (with-deep-indent nil
+     (string-should-indent "class Foo\nprivate\ndef foo\nx\nend\nend\n"
+                           "class Foo\n  private\n    def foo\n      x\n    end\nend\n"))))
+
+(enh-deftest enh-ruby-indent-multiple-visibility ()
+  (let ((enh-ruby-indent-after-visibility t))
+    (with-deep-indent nil
+     (string-should-indent "class Foo\nprotected\ndef foo\nx\nend\nprivate\ndef bar\nx\nend\nend\n"
+                           "class Foo\n  protected\n    def foo\n      x\n    end\n  private\n    def bar\n      x\n    end\nend\n"))))
+
 (enh-deftest enh-ruby-indent-hash ()
   ;; https://github.com/zenspider/enhanced-ruby-mode/issues/78
   (with-deep-indent nil
